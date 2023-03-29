@@ -1,6 +1,6 @@
 #!/bin/bash
 #2.30Ubuntu
-
+#тестовый комментарий
 distr_filename=distrib_2.30+3.1
 platform_version=2.30_3.1
 snap list | grep docker
