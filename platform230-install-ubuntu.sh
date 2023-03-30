@@ -1,6 +1,6 @@
 #!/bin/bash
 #2.30Ubuntu
-#тестовый комментарий
+
 distr_filename=distrib_2.30+3.1
 platform_version=2.30_3.1
 snap list | grep docker
@@ -36,7 +36,7 @@ else
 	usermod -aG docker $USER
 	systemctl start docker
 fi
-echo -e "\e[36mURL платформы:\e[0m"
+echo -e "\e[36mВведите IP адрес платформы или DNS имя:\e[0m"
 read -p "> " platform_url
 echo -e "\e[36mТип установки\e[0m"
 distr=("Установка через образы" "Установка через Yandex Container Registry")
