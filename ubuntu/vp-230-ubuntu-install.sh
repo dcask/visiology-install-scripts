@@ -1,8 +1,30 @@
 #!/bin/bash
 #2.30Ubuntu
 
-distr_filename=distrib_2.30+3.1
-platform_version=2.30_3.1
+echo "Выберите вверсию для установки:"
+echo "1 2.30+3.1"
+echo "2 2.31+3.2"
+echo "3 Выход"
+
+read choice
+
+case $choice in
+1)
+platform_version=2.30+3.1
+;;
+2)
+platform_version=2.31+3.2
+;;
+3)
+exit 0
+;;
+*)
+echo "Выберите вверсию для установки:"
+
+esac
+
+distr_filename=distrib_$platform_version
+#platform_version=2.30_3.1
 snap list | grep docker
 if [ $? -eq 0 ]; then
     echo -e "\e[31mУстановлен docker из snap. Удалите и запустите скрипт заново\e[0m"
@@ -26,12 +48,12 @@ then
     echo -e "\e[42mDocker установлени\e[0m"
 else
 	echo -e "\e[42mУстановка Docker+Compose\e[0m"
-	apt-get install ca-certificates curl gnupg lsb-release -ydocker 
+	apt-get install ca-certificates curl gnupg lsb-release -y 
 	mkdir -p /etc/apt/keyrings
 	curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 	echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 	apt-get update
-	apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin=2.16.0-1~ubuntu.22.04~jammy -y
+	apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin
 	groupadd docker
 	usermod -aG docker $USER
 	systemctl start docker
