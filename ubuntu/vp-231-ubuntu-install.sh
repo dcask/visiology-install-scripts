@@ -47,19 +47,19 @@ do
             read -p "Скачать дистрибутив $platform_version? (Y/N)" answer
 			case ${answer:0:1} in
 				y|Y )
-					wget "https://storage.yandexcloud.net/distributions/${distr_filename}.tar.xz"
+					wget "https://storage.yandexcloud.net/distributions/${distr_filename}.tar"
 					;;
 				* )
 					echo "Поиск дистрибутива.."
 					;;
 			esac
-			if test -f ./"${distr_filename}.tar.xz"; then
+			if test -f ./"${distr_filename}.tar"; then
 						echo "Файл с дистрибутивом найден"
 					else
 						echo -e "\e[31mОтсутствует файл с дистрибутивом\e[0m"
 						exit 1
 					fi
-			tar -xvf ${distr_filename}.tar.xz
+			tar -xvf ${distr_filename}.tar
 			cd ${distr_filename}
 			docker load < images/platform-deployment.tar.gz
 			docker run -it --rm -u $(id -u):$(id -g) -v "$(pwd)":/mnt/volume -v /var/lib/visiology/certs:/mnt/visiology cr.yandex/crpe1mi33uplrq7coc9d/visiology/release/platform-deployment:$platform_version
