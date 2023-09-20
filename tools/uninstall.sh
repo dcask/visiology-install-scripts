@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-deadcontainers=$(docker ps -a | grep Exited | awk '{print $1}' )
+deadcontainers= $(docker ps -a | grep -P '^(?=.*cr.yandex)(?=.*Exited)' | awk '{print $1}')
 if [[ -n ${deadcontainers} ]]; then
    docker container rm ${deadcontainers}
 fi
