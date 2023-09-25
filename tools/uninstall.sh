@@ -7,7 +7,7 @@ fi
 
 killvolumes=$(docker volume ls --format "{{.Name}}" | grep visiology)
 if [[ -n ${killvolumes} ]];  then
-  docker volume ${killvolumes} rm  -f
+  docker volume rm ${killvolumes} -f
 fi
 
 killsecrets=$(docker secret ls --format "{{.Name}}" -q)
