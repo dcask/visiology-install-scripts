@@ -1,8 +1,8 @@
 #!/bin/bash
-#2.37&3.8Ubuntu
+#2.38&3.9Ubuntu
 
-DISTR_FILENAME=2.37_3.8
-PLATFORM_VERSION=2.37_3.8
+DISTR_FILENAME=2.38_3.9
+PLATFORM_VERSION=2.38_3.9
 
 function prepare(){
     if [[ $1 == "v2" || $1 == "all" ]]; then
