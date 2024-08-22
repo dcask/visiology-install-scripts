@@ -11,12 +11,12 @@ read choice
 case $choice in
 1)
 platform_version=2.30+3.1
-distr_filename=distrib_$platform_version.tar.gz
+distr_Filename=distrib_$platform_version.tar.gz
 distr_folder=distrib_$platform_version
 ;;
 2)
 platform_version=2.31+3.2
-distr_filename=distrib_$platform_version.tar
+distr_Filename=distrib_$platform_version.tar
 distr_folder=distrib_$platform_version
 ;;
 3)
@@ -27,7 +27,7 @@ echo "Выберите вверсию для установки:"
 
 esac
 
-#distr_filename=distrib_$platform_version
+#distr_Filename=distrib_$platform_version
 #platform_version=2.30_3.1
 snap list | grep docker
 if [ $? -eq 0 ]; then
@@ -73,19 +73,19 @@ do
             read -p "Скачать дистрибутив $platform_version? (Y/N)" answer
 			case ${answer:0:1} in
 				y|Y )
-					wget "https://storage.yandexcloud.net/distributions/${distr_filename}"
+					wget "https://storage.yandexcloud.net/distributions/${distr_Filename}"
 					;;
 				* )
 					echo "Поиск дистрибутива.."
 					;;
 			esac
-			if test -f ./"${distr_filename}"; then
+			if test -f ./"${distr_Filename}"; then
 						echo "Файл с дистрибутивом найден"
 					else
 						echo -e "\e[31mОтсутствует файл с дистрибутивом\e[0m"
 						exit 1
 					fi
-			tar -xvf ${distr_filename}
+			tar -xvf ${distr_Filename}
 			cd ${distr_folder}
 			docker load < images/platform-deployment.tar.gz
 			docker run -it --rm -u $(id -u):$(id -g) -v "$(pwd)":/mnt/volume -v /var/lib/visiology/certs:/mnt/visiology cr.yandex/crpe1mi33uplrq7coc9d/visiology/release/platform-deployment:$platform_version
