@@ -24,6 +24,7 @@ option_flag_zip=${UNDEFINED}
 option_flag_clear=${UNDEFINED}
 option_flag_stats=${UNDEFINED}
 option_flag_info=${UNDEFINED}
+option_flag_jobs=${UNDEFINED}
 
 EXITED_RELATIVE_PATH=exited
 RUNNING_RELATIVE_PATH=running
@@ -50,7 +51,8 @@ function print_help() {
   echo "   -i | --info                            Optional. Make system info file"
   echo "   -t | --stats                           Optional. Make stats file"
   echo "   -z | --zip                             Optional. Make tar.gz file"
-  echo "   -v | --version <v2|v3|common> Optional. Platform version. Default v3"
+  echo "   -j | --jobs                            Optional. Get hangfire jobs"
+  echo "   -v | --version <v2|v3|common>          Optional. Platform version. Default v3"
   echo
 }
 
@@ -77,7 +79,7 @@ function split_options() {
     if [[ $param == -* && $param != --* ]]; then
       options="${param:1}"
 
-      for (( i=0; i<${#options}; i++ )); do
+      for ((i = 0; i < ${#options}; i++)); do
         options_array+=("-${options:i:1}")
       done
     else
@@ -85,7 +87,8 @@ function split_options() {
     fi
   done
 
-  IFS=' ' ; echo "${options_array[*]}"
+  IFS=' '
+  echo "${options_array[*]}"
 }
 
 function rotate_logs() {
@@ -140,6 +143,9 @@ while [[ "$1" != "" ]]; do
     ;;
   "-r" | "--report")
     option_flag_report=${TRUE}
+    ;;
+  "-j" | "--jobs")
+    option_flag_jobs=${TRUE}
     ;;
   *)
     echo "Unknown key: $1"
@@ -219,14 +225,14 @@ done
 if [[ "${option_flag_report}" == "${TRUE}" ]]; then
   sub=("formula-engine" "workspace-service" "smart-forms" "data-management-service" "dashboard-service" "dashboard-viewer")
 
-  > ${ZIP_PATH}/tmpreportfile
-  > ${ZIP_PATH}/${REPORT_FILE}
+  >${ZIP_PATH}/tmpreportfile
+  >${ZIP_PATH}/${REPORT_FILE}
 
   for file in ${FOLDER_PATH}/${RUNNING_RELATIVE_PATH}/*; do
     if [[ -f "$file" ]]; then
       for s in "${sub[@]}"; do
         if [[ "$file" == *"$s"* && "$file" != *"error"* ]]; then
-          awk -v sub_name="${s}" '/^.*\[[0-9]+:[0-9]+:[0-9]+ [A-Za-z]+\]/ {print "[" $1 " " $3 " " sub_name " : " $4 " " $5 " " $6 ".."}' "$file" >> ${ZIP_PATH}/tmpreportfile
+          awk -v sub_name="${s}" '/^.*\[[0-9]+:[0-9]+:[0-9]+ [A-Za-z]+\]/ {print "[" $1 " " $3 " " sub_name " : " $4 " " $5 " " $6 ".."}' "$file" >>${ZIP_PATH}/tmpreportfile
         fi
       done
     fi
@@ -236,7 +242,7 @@ if [[ "${option_flag_report}" == "${TRUE}" ]]; then
     if [[ -f "$file" ]]; then
       for s in "${sub[@]}"; do
         if [[ "$file" == *"$s"* && "$file" != *"error"* ]]; then
-          awk -v sub_name="${s}" '/^.*\[[0-9]+:[0-9]+:[0-9]+ [A-Za-z]+\]/ {print "[" $1 " " $3 " " sub_name " : " $4 " " $5 " " $6 ".."}' "$file" >> ${ZIP_PATH}/tmpreportfile
+          awk -v sub_name="${s}" '/^.*\[[0-9]+:[0-9]+:[0-9]+ [A-Za-z]+\]/ {print "[" $1 " " $3 " " sub_name " : " $4 " " $5 " " $6 ".."}' "$file" >>${ZIP_PATH}/tmpreportfile
         fi
       done
     fi
@@ -247,27 +253,44 @@ fi
 
 ##### Add stats
 if [[ "${option_flag_stats}" == "${TRUE}" ]]; then
-  echo -e "HEADER: Name\t\tCPU\t\tMemory\t\tNetIO\t\tBlockIO\t\tMemory(%)" > ${ZIP_PATH}/${STATS_FILE}
+  echo -e "HEADER: Name\t\tCPU\t\tMemory\t\tNetIO\t\tBlockIO\t\tMemory(%)" >${ZIP_PATH}/${STATS_FILE}
 
-  docker stats -a --no-stream --no-trunc --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.MemPerc}}" | grep visiology3 >> ${ZIP_PATH}/${STATS_FILE}
+  docker stats -a --no-stream --no-trunc --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.MemPerc}}" | grep visiology3 >>${ZIP_PATH}/${STATS_FILE}
 fi
 
 ##### Get sys info file
 if [[ "${option_flag_info}" == "${TRUE}" ]]; then
-  echo "########### OS" > ${ZIP_PATH}/${SYSTEM_FILE}
-  cat /etc/*-release >> ${ZIP_PATH}/${SYSTEM_FILE}
-  echo -e "\n########### Memory" >> ${ZIP_PATH}/${SYSTEM_FILE}
-  free -h >> ${ZIP_PATH}/${SYSTEM_FILE}
-  echo -e "\n########### Swap" >> ${ZIP_PATH}/${SYSTEM_FILE}
-  swapon -s >> ${ZIP_PATH}/${SYSTEM_FILE}
-  echo -e "\n########### Disk" >> ${ZIP_PATH}/${SYSTEM_FILE}
-  df -h -x overlay -x tmpfs >> ${ZIP_PATH}/${SYSTEM_FILE}
+  echo "########### OS" >${ZIP_PATH}/${SYSTEM_FILE}
+  cat /etc/*-release >>${ZIP_PATH}/${SYSTEM_FILE}
+  echo -e "\n########### Memory" >>${ZIP_PATH}/${SYSTEM_FILE}
+  free -h >>${ZIP_PATH}/${SYSTEM_FILE}
+  echo -e "\n########### Swap" >>${ZIP_PATH}/${SYSTEM_FILE}
+  swapon -s >>${ZIP_PATH}/${SYSTEM_FILE}
+  echo -e "\n########### Disk" >>${ZIP_PATH}/${SYSTEM_FILE}
+  df -h -x overlay -x tmpfs >>${ZIP_PATH}/${SYSTEM_FILE}
 fi
 
 ##### Components version
 if [[ "${VERSION_FILTER}" == "${V3}" ]]; then
   source ${PLATFORM_CONFIG}
   wget --no-check-certificate -O ${ZIP_PATH}/${COMPONENTS_FILE} ${PLATFORM_URL}/version 2>/dev/null
+fi
+
+##### Get hangfire jobs
+if [[ "${option_flag_jobs}" == "${TRUE}" ]]; then
+  INTERVAL=${SINCE/m/ minutes}
+  INTERVAL=${INTERVAL/h/ hours}
+  INTERVAL=${INTERVAL/d/ days}
+  pg_container_id=$(docker ps -q --filter label=component=v3-postgres-visiology)
+  pg_user=$(docker exec ${pg_container_id} cat /run/secrets/POSTGRES_VISIOLOGY_ROOT_USER)
+  pg_password=$(docker exec ${pg_container_id} cat /run/secrets/POSTGRES_VISIOLOGY_ROOT_PASSWORD)
+
+  hangfire=( "dm_hangfire" "fe_hangfire" "ds_hangfire" "ws_hangfire" )
+
+  for scheme in "${hangfire[@]}"; do
+    pg_command="select to_char(j.createdat, 'YYYY-MM-DD HH:MI:SS'), j.statename, s.data from ${scheme}.state s left join ${scheme}.job j on j.id=s.jobid where j.createdat> NOW() - INTERVAL '${INTERVAL} minutes';"
+    docker exec ${pg_container_id} bash -c "PGPASSWORD=${pg_password} psql -t --csv -U ${pg_user} -d visiology -c \"${pg_command}\"" > ${ZIP_PATH}/${scheme}.csv
+  done
 fi
 
 ##### Archive option
