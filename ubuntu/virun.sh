@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Help script for Visiology 2&3 https://github.com/dcask/visiology-install-scripts/ubuntu/virun.sh
 # place it at /var/lib/visiology/scripts
 
