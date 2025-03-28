@@ -19,10 +19,13 @@ NORMAL=$(tput sgr0)
 BACK="0. Назад ---------------------------------------"
 EXIT="0. Выход ---------------------------------------"
 PRESS_ANY_KEY="..Нажмите любую клавишу для возврата в меню ----------"
+NEED_RESTART="При изменении требуется выполнить перезапуск (корневой пункт меню 1)"
+NEED_RECONF="При изменении требуется выполнить переконфигурацию (корневой пункт меню 8)"
 
 PROXY_SERVICE=reverse-proxy
 
-execute_start_row=20
+execute_start_row=25
+munu_start_position=8
 config_start_col=80
 
 # Platform settings
@@ -37,7 +40,32 @@ RELATIVE_PATH=/v3
 CERTS_DIR="../certs/"
 UTILS_DIR="./v3/utils"
 V3_DIR="./v3/"
+FORCE_CHANGE_URL_FILE=./v3/.changeurlflag
 
+################################ clear buffer
+function clear_buffer {
+  while read -t 0.1 -rn1 _; do
+    :
+  done
+}
+function logo {
+  local area_text=()
+
+  area_text+=("____   ____.__       .__       .__                       ")
+  area_text+=("\   \ /   /|__| _____|__| ____ |  |   ____   ____ ___.__.")
+  area_text+=(" \   Y   / |  |/  ___/  |/  _ \|  |  /  _ \ / ___<   |  |")
+  area_text+=("  \     /  |  |\___ \|  (  <_> )  |_(  <_> ) /_/  >___  |")
+  area_text+=("   \___/   |__/____  >__|\____/|____/\____/\___  // ____|")
+  area_text+=("                   \/                     /_____/ \/     ")
+
+  row=${1:-1}
+
+  for line in "${area_text[@]}"; do
+    tput cup "${row}" "${2:-1}"
+    printf "${line}"
+    ((++row))
+  done
+}
 
 ################################ Show menu part
 function select_option {
@@ -48,10 +76,7 @@ function select_option {
   options=("$@")
   IFS=$'\n' opt_sorted=($(sort <<<"${options[*]}"));unset IFS
 
-  clear_buffer()    { while read -t 0.1 -rn1 _; do
-                          :
-                      done
-                     }
+
   cursor_norm()      { tput cnorm; }
   cursor_invisible() { tput civis; }
   cursor_to()        { tput cup "${1:-0}" "${2:-0}"; }
@@ -72,12 +97,18 @@ function select_option {
                            ;;
                        esac
                      }
+
   for options; do printf "\n"; done
 
-  last_row=$(get_cursor_row)
-  start_row=$((last_row - $#))
-  selected=0
+  while true; do
+    last_row=$(get_cursor_row)
 
+    if [[ "${last_row}" =~ ^[0-9]+$ ]]; then break; fi
+
+  done
+
+  start_row=$((last_row - ${#options[@]}))
+  selected=0
   stty -echo
   cursor_invisible
   trap "cursor_norm; stty echo; printf '\n'; exit" 2
@@ -130,7 +161,6 @@ function select_opt {
 }
 
 function true_false_menu {
-
   local false_true_selected_opt
   false_true_selected_opt=$(select_opt "${true_false[@]}")
   opt_type=${FALSE}
@@ -148,13 +178,20 @@ function env_read_and_set {
   local result=0
   read -rp "$1" tmp
 
+  local until_mark='.*$'
+
+  if [[ -n "$4" ]]; then
+    until_mark="$4"
+  fi
+
   if [[ -n "${tmp}" ]]; then
-    sed -i -E "s/^$2=.*$/$2=${tmp}/" $3
+    sed -i -E "s/^$2=${until_mark}/$2=${tmp}/" $3
     result=1
   fi
 
   return ${result}
 }
+
 
 function xml_read_and_set {
   [[ -z "$4" ]] || tput cup ${execute_start_row} 0
@@ -285,9 +322,10 @@ menu[menu3]="4. Изменить параметры запуска .."
 menu[menu4]="5. Изменить настройки платформы .."
 menu[menu5]="6. Диагностика .."
 menu[menu6]="7. Бэкап/восстановление .."
-menu[menu7]="${EXIT}"
+menu[menu7]="8. Подготовить конфигурацию стенда"
+menu[menu8]="${EXIT}"
 
-menu3[menu31]="1 .Изменить порт"
+menu3[menu31]="1. Изменить порт"
 menu3[menu32]="2. Изменить адрес"
 menu3[menu33]="3. Включить/выключить SSL"
 menu3[menu34]="${BACK}"
@@ -299,7 +337,7 @@ menu4[menu403]="03. Создать кластер Clickhouse"
 menu4[menu406]="04. Запретить/Разрешить встраивать iframe на сторонние сайты"
 menu4[menu407]="05. Отключение/Включение мониторинга"
 menu4[menu408]="06. Отключение/Включение админки Keycloak"
-menu4[menu409]="${BACK}"
+menu4[menu409]="0${BACK}"
 menu4[menu410]="07. Отключение/Включение внешниго Keycloak"
 menu4[menu411]="08. Ускорение запросов к Clickhouse"
 menu4[menu412]="09. Изменение времени ротации логов Loki"
@@ -313,6 +351,11 @@ menu4[menu419]="15. Настройка сетевой папки"
 menu5[menu53]="1. Сбор логов"
 menu5[menu51]="${BACK}"
 menu5[menu52]="2. Запущенные сервисы"
+menu5[menu54]="3. Системная информация"
+menu5[menu55]="4. Docker stats"
+menu5[menu56]="5. Docker info"
+menu5[menu57]="6. Сеть"
+
 
 menu6[menu62]="1. Бэкап"
 menu6[menu61]="2. Восстановление"
@@ -325,6 +368,7 @@ menu6[menu63]="${BACK}"
 # Platform stop
 function menu1 {
   /bin/bash run.sh --stop
+  return 1
 }
 # Platform restart
 function menu0 {
@@ -334,6 +378,8 @@ function menu0 {
   else
     /bin/bash run.sh --restart
   fi
+
+  return 1
 }
 # Licence
 function menu2 {
@@ -343,13 +389,15 @@ function menu2 {
   if [[ -n "${licence_key}" ]]; then
     /bin/bash ./${V3}/prepare-config.sh -l "${licence_key}"
   fi
+  
+  echo "${NEED_RESTART}"
 }
 ########### menu3
 # Get port
 function menu31 {
   while true; do
     tput cup ${execute_start_row} 0; tput cud1
-    printf "После указания нового значения порта последует перезапуск платформы\n"
+    printf "После указания нового значения порта автоматически последует перезапуск платформы\n"
     read -rp "Порт запуска (0 оставить без изменения): " port
 
     if [[ ${port} -lt 0 || ${port} -gt 65535 ]]; then
@@ -362,15 +410,19 @@ function menu31 {
   if [[ ${port} -ne 0 ]]; then
       /bin/bash run.sh --restart -c --port ${port}
   fi
+
+  return 1
 }
 # Get address
 function menu32 {
-  env_read_and_set "Корневой адрес запуска платформы ( пусто - без изменений): " "PLATFORM_IP" ${configEnvPath}
+  env_read_and_set "Корневой адрес запуска платформы ( пусто - без изменений): " "PLATFORM_IP" ${configEnvPath} "[^:]*"
   local result=$?
 
   if [[ $result -eq 1 ]]; then
     CHANGE_URL=${TRUE}
   fi
+  
+  echo "${NEED_RESTART}"
 }
 # Enable/disable SSL
 function menu33 {
@@ -382,6 +434,8 @@ function menu33 {
   if [[ "${HTTPS}" == "${TRUE}" && "${opt_http}" == "${FALSE}" ]] || [[ "${HTTPS}" == "${FALSE}" && "${opt_http}" == "${TRUE}" ]]; then
     CHANGE_URL=${TRUE}
   fi
+  
+  echo "${NEED_RESTART}"
 }
 # Switch versions
 function menu35 {
@@ -401,7 +455,7 @@ function menu35 {
   esac
 
   sed -i -E "s/^START_VERSION=.*$/START_VERSION=${start_version}/" ${configEnvPath}
-
+  echo "${NEED_RESTART}"
 }
 ########### menu4
 
@@ -431,11 +485,14 @@ function menu402 {
     pass_name=$(basename "${key_path}")
     sed -i -E "s/^CERT_PASS_FILENAME=.*$/CERT_PASS_FILENAME=${pass_name}/" ${configEnvPath}
   fi
+  
+  echo "${NEED_RESTART}"
 }
 # Loki type
 function menu401 {
   opt_type=$(true_false_menu)
   /bin/bash ${V3_DIR}prepare-config.sh --is-loki-time-unlimite ${opt_type}
+  echo "${NEED_RESTART}"
 }
 # Docker dns
 function menu416 {
@@ -444,65 +501,78 @@ function menu416 {
   read -rp "IP для ${PLATFORM_IP} (пусто - без изменений): " ip
 
   if [[ -n "${ip}" ]]; then
-    if [[ -e "${V3_EXTENDED_SERVICES_DIR}/35_extrahosts.ym_" ]]; then
-      mv ${V3_EXTENDED_SERVICES_DIR}/35_extrahosts.ym_ ${V3_EXTENDED_SERVICES_DIR}/35_extrahosts.yml
+    if [[ -f "${V3_EXTENDED_SERVICES_DIR}/35-extrahosts.ym_" ]]; then
+      mv "${V3_EXTENDED_SERVICES_DIR}/35-extrahosts.ym_" "${V3_EXTENDED_SERVICES_DIR}/35-extrahosts.yml"
     fi
 
-    if [[ -e "${V3_EXTENDED_SERVICES_DIR}/35_extrahosts.yml" ]]; then
+    if [[ -f "${V3_EXTENDED_SERVICES_DIR}/35-extrahosts.yml" ]]; then
       sed -i -E 's/^-\s+".*:.*"$/"${PLATFORM_IP}:${ip}"/' ${V3_EXTENDED_SERVICES_DIR}/35_extrahosts.yml
+    else
+      printf "\nФайл с extrahost не найден"
     fi
   fi
-
+  
+  echo "${NEED_RESTART}"
 }
 # Clickhouse cluster
 function menu403 {
   /bin/bash ${UTILS_DIR}/make_ch_fast_loading.sh
   /bin/bash ${UTILS_DIR}/make_ch_cluster.sh
+  echo "${NEED_RESTART}"
 }
 # sameorigin
 function menu406 {
   opt_type=$(true_false_menu)
   sed -i -E "s/^SAMEORIGIN=.*$/SAMEORIGIN=${opt_type}/" ${configEnvPath}
+  echo "${NEED_RESTART}"
 }
 # Monitoring
 function menu407 {
   opt_type=$(true_false_menu)
   /bin/bash ${V3_DIR}prepare-config.sh --monitoring ${opt_type}
+  echo "${NEED_RESTART}"
 }
 # Fstec
 function menu408 {
   opt_type=$(true_false_menu)
   /bin/bash ${V3_DIR}prepare-config.sh --fstec ${opt_type}
+  echo "${NEED_RESTART}"
 }
 # Ext keycloak
 function menu410 {
   opt_type=$(true_false_menu)
   /bin/bash ${V3_DIR}prepare-config.sh --ext-auth ${opt_type}
+  echo "${NEED_RESTART}"
 }
 # Fast loading
 function menu411 {
   /bin/bash ${UTILS_DIR}/make_ch_fast_loading.sh
+  echo "${NEED_RESTART}"
 }
 # Loki time
 function menu412 {
   env_read_and_set "Время ротации логов ( пусто - без изменений): " "LOKI_RETENTION_TIME" ${defaultsV3EnvPath}
+  echo "${NEED_RESTART}"
 }
 # drop limit
 function menu413 {
   xml_path=${configsV3dirPath}clickhouse-disable-drop-limits.xml
   xml_read_and_set "max_table_size_to_drop ( пусто - без изменений): " "max_table_size_to_drop" ${xml_path}
   xml_read_and_set "max_partition_size_to_drop ( пусто - без изменений): " "max_partition_size_to_drop" ${xml_path}
+  echo "${NEED_RECONF}"
 }
 # timeout
 function menu414 {
   xml_path=${configsV3dirPath}clickhouse-http-receive-timeout.xml
   xml_read_and_set "http_max_field_value_size ( пусто - без изменений): " "http_max_field_value_size" ${xml_path}
   xml_read_and_set "http_receive_timeout ( пусто - без изменений): " "http_receive_timeout" ${xml_path}
+  echo "${NEED_RECONF}"
 }
 # time zone
 function menu415 {
   xml_path=${configsV3dirPath}clickhouse-timezone.xml
   xml_read_and_set "timezone ( пусто - без изменений): " "timezone" ${xml_path}
+  echo "${NEED_RECONF}"
 }
 # Driver
 function menu417 {
@@ -523,6 +593,8 @@ function menu417 {
       echo "      - ${driver_file}:/app/drivers/${file_name}" >> ${driver_file}
     fi
   fi
+  
+  echo "${NEED_RESTART}"
 }
 # Mail server
 function menu418 {
@@ -577,6 +649,8 @@ function menu418 {
     docker secret rm DS_EMAIL_PASSWORD && \
     echo -n "${ds_email_password}" | docker secret create -l ${DS_EMAIL_SECRETS_LABEL}=password DS_EMAIL_PASSWORD -
   fi
+  
+  echo "${NEED_RESTART}"
 }
 # Net folder
 function menu419 {
@@ -594,13 +668,14 @@ function menu419 {
 
   if [[ ! -f "${V3_EXTENDED_SERVICES_DIR}/01-net-folder.ym_" ]]; then
     mv ${V3_EXTENDED_SERVICES_DIR}/01-net-folder.ym_ ${V3_EXTENDED_SERVICES_DIR}/01-net-folder.yml
+    echo "${NEED_RESTART}"
   fi
 }
 ########### menu5
 # Services
 function menu52 {
-  printf "Name -- Replicas\n"
-  docker service ls --format '{{ .Name }}: {{ $v := split .Replicas "/" }}{{ slice $v 0 1 }}'
+  printf "Replicas\tName\n"
+  docker service ls --format '{{ $v := split .Replicas "/" }}{{ slice $v 0 1 }}\t{{ .Name }}'
 }
 # Logs
 function menu53 {
@@ -615,16 +690,76 @@ function menu53 {
       ;;
   esac
 }
+# Sys info
+function menu54 {
+  echo "########### OS"
+  cat /etc/*-release
+  echo -e "\n########### Memory"
+  free -h
+  echo -e "\n########### Disk"
+  df -h -x overlay -x tmpfs
+  echo -e "\n########### Docker"
+  docker --version
+  docker compose version
+}
+# Docker stats
+function menu55 {
+  echo -e "HEADER: Name\t\tCPU\t\tMemory\t\tNetIO\t\tBlockIO\t\tMemory(%)"
+  docker stats -a --no-stream --no-trunc --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.MemPerc}}" | grep visiology3
+}
+# Docker info
+function menu56 {
+  docker info | less
+  return 1
+}
+# Network
+function menu57 {
+  ip -f inet addr show | grep 'eth' | awk '{print $2}' | cut -d'/' -f1
+
+  if [[ $(which curl) ]]; then
+    echo "External IP: $(curl -s ifconfig.me)"
+  fi
+}
 ########## menu 6
 # Restore
 function menu61 {
   /bin/bash ./v3/restore.sh
   /bin/bash ${UTILS_DIR}/load_secrets.sh
+  return 1
 }
 # Backup
 function menu62 {
   /bin/bash ${UTILS_DIR}/store_secrets.sh
   /bin/bash ./v3/backup.sh
+  return 1
+}
+########## menu 7
+# prepare
+function menu7 {
+  source ${configEnvPath}
+
+  proxy_container_id=$(docker ps -f status=running | grep ${PROXY_SERVICE} |  awk '{ print $1 }');
+
+  if [[ -z "${proxy_container_id}" ]]; then
+    case "${START_VERSION}" in
+      "${V2}")
+        /bin/bash ./v2/prepare-config.sh
+        /bin/bash ./v2/prepare-folders.sh
+        ;;
+      "${V3}")
+        /bin/bash ./v2/prepare-config.sh -f
+        ;;
+      "${ALL}")
+        /bin/bash ./v2/prepare-config.sh
+        /bin/bash ./v2/prepare-folders.sh
+        /bin/bash ./v2/prepare-config.sh -f
+        ;;
+    esac
+  else
+    printf "\nПлатформу необходимо предварительно остановить"
+  fi
+  
+  return 1
 }
 ################################################################ end
 
@@ -635,13 +770,15 @@ tput smcup
 #################### main loop #####################################
 while true; do
   clear
+  stty -echo
   tput home
-  printf "Menu:"
-  print_config_env 1 ${config_start_col}
+  logo 1 0
+  printf "\nMenu:"
+  print_config_env 5 ${config_start_col}
 
   tput cup ${execute_start_row} 0
-  printf "#!"
-  tput home
+  echo -e "🠗🠗🠗🠗🠗🠗🠗🠗🠗🠗"
+  tput cup 7 0
   selected_opt=$(select_opt "${current_menu[@]}")
   i=0
 
@@ -659,7 +796,13 @@ while true; do
     *"${EXIT}"*)
       #restore screen
       clear
+      stty echo
       tput rmcup;
+
+      if [[ "${CHANGE_URL}" == "${TRUE}" ]]; then
+        >"${FORCE_CHANGE_URL_FILE}"
+      fi
+
       exit 0
       ;;
     *"${BACK}"*)
@@ -670,9 +813,14 @@ while true; do
       ;;
     *)
       tput cup ${execute_start_row} 0; tput cud1
+      stty echo
       $key
-      printf "\n\n%s" "${MAGENTA}${PRESS_ANY_KEY}${NORMAL}"
-      read -rn 1
+      execution_result=$?
+      if [[ "${execution_result}" -eq 0 ]]; then
+        printf "\n\n%s" "${MAGENTA}${PRESS_ANY_KEY}${NORMAL}"
+        read -rn1
+        clear_buffer
+      fi
       ;;
   esac
 done
