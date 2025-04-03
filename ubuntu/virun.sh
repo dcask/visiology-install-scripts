@@ -68,7 +68,7 @@ function logo {
   done
 }
 function make_check_sum {
-  find -type f \( -name '*.yml' -or -name '*.sh' -or name '*.ym_' \) \
+  find -type f \( -name '*.yml' -or -name '*.sh' -or -name '*.ym_' \) \
      \( -not -name ".*checksum*" \) \
      \( -not -path "./extended-services/*" \) \
      \( -not -path "./v3/extended-services/*" \) \
@@ -259,7 +259,7 @@ function print_config_env {
     area_text+=("\xb2 ${BLUE}Опции памяти для Keycloak${NORMAL}: ${KEYCLOAK_MEM_OPTIONS}")
 
     if [[ "${FSTEC}" == "${TRUE}" ]]; then
-      area_text+=("\xb2 ${BLUE}Блокировка админки Keycloak${NORMAL}: ${FSTEC}")
+      area_text+=("\xb2 ${BLUE}Защита админки Keycloak${NORMAL}: ${FSTEC}")
     fi
 
     if [[ ${LOKI_IS_TIME_UNLIMITED} == "${FALSE}" ]]; then
@@ -343,9 +343,9 @@ menu4[menu402]="02. Установить SSL сертификаты"
 menu4[menu403]="03. Создать кластер Clickhouse"
 menu4[menu406]="04. Запретить/Разрешить встраивать iframe на сторонние сайты"
 menu4[menu407]="05. Отключение/Включение мониторинга"
-menu4[menu408]="06. Отключение/Включение админки Keycloak"
+menu4[menu408]="06. Отключение/Включение защиты Keycloak"
 menu4[menu409]="0${BACK}"
-menu4[menu410]="07. Отключение/Включение внешниго Keycloak"
+menu4[menu410]="07. Отключение/Включение внешнего Keycloak"
 menu4[menu411]="08. Ускорение запросов к Clickhouse"
 menu4[menu412]="09. Изменение времени ротации логов Loki"
 menu4[menu413]="10. Изменении предельного размера таблицы для удаления в Clickhouse"
@@ -375,7 +375,10 @@ menu6[menu63]="${BACK}"
 # Platform stop
 function menu1 {
   /bin/bash run.sh --stop
-  return 1
+
+  if [[ $? -eq 0 ]]; then
+    return 1
+  fi
 }
 # Platform restart
 function menu0 {
@@ -386,7 +389,9 @@ function menu0 {
     /bin/bash run.sh --restart
   fi
 
-  return 1
+  if [[ $? -eq 0 ]]; then
+    return 1
+  fi
 }
 # Licence
 function menu2 {
@@ -418,7 +423,9 @@ function menu31 {
       /bin/bash run.sh --restart -c --port ${port}
   fi
 
-  return 1
+  if [[ $? -eq 0 ]]; then
+    return 1
+  fi
 }
 # Get address
 function menu32 {
@@ -513,7 +520,7 @@ function menu416 {
     fi
 
     if [[ -f "${V3_EXTENDED_SERVICES_DIR}/35-extrahosts.yml" ]]; then
-      sed -i -E 's/^-\s+".*:.*"$/"${PLATFORM_IP}:${ip}"/' ${V3_EXTENDED_SERVICES_DIR}/35_extrahosts.yml
+      sed -i -E "s/-\s+\".+:.+\"$/- \"${PLATFORM_IP}:${ip}\"/" "${V3_EXTENDED_SERVICES_DIR}/35-extrahosts.yml"
     else
       printf "\nФайл с extrahost не найден"
     fi
@@ -735,20 +742,28 @@ function menu58 {
     printf "Файл контрольных сумм не найден"
   fi
 
-  return 1
+  if [[ $? -eq 0 ]]; then
+    return 1
+  fi
 }
 ########## menu 6
 # Restore
 function menu61 {
   /bin/bash ./v3/restore.sh
   /bin/bash ${UTILS_DIR}/load_secrets.sh
-  return 1
+
+  if [[ $? -eq 0 ]]; then
+    return 1
+  fi
 }
 # Backup
 function menu62 {
   /bin/bash ${UTILS_DIR}/store_secrets.sh
   /bin/bash ./v3/backup.sh
-  return 1
+
+  if [[ $? -eq 0 ]]; then
+    return 1
+  fi
 }
 ########## menu 7
 # prepare
@@ -764,19 +779,22 @@ function menu7 {
         /bin/bash ./v2/prepare-folders.sh
         ;;
       "${V3}")
-        /bin/bash ./v2/prepare-config.sh -f
+        /bin/bash ./v3/prepare-config.sh -f
         ;;
       "${ALL}")
         /bin/bash ./v2/prepare-config.sh
         /bin/bash ./v2/prepare-folders.sh
-        /bin/bash ./v2/prepare-config.sh -f
+        /bin/bash ./v3/prepare-config.sh -f
         ;;
     esac
   else
     printf "\nПлатформу необходимо предварительно остановить"
+    return 0
   fi
 
-  return 1
+  if [[ $? -eq 0 ]]; then
+    return 1
+  fi
 }
 ################################################################ end
 
