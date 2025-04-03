@@ -2,6 +2,7 @@
 # Help script for Visiology 2&3 https://github.com/dcask/visiology-install-scripts/ubuntu/virun.sh
 # place it at /var/lib/visiology/scripts
 
+#2.41&3.12
 # Defaults
 declare -a true_false=( "Включить" "Выключить" )
 V2=v2
@@ -68,7 +69,7 @@ function logo {
   done
 }
 function make_check_sum {
-  find -type f \( -name '*.yml' -or -name '*.sh' -or name '*.ym_' \) \
+  find -type f \( -name '*.yml' -or -name '*.sh' -or -name '*.ym_' \) \
      \( -not -name ".*checksum*" \) \
      \( -not -path "./extended-services/*" \) \
      \( -not -path "./v3/extended-services/*" \) \
@@ -166,7 +167,21 @@ function select_opt {
   echo ${result}
   return ${result}
 }
+#Esc menu
+function esc_menu {
+  tput cup ${execute_start_row} 0; tput cud1
 
+  set -o emacs
+  bind '"\C-w": kill-whole-line'
+  bind '"\e": "\C-w\C-d"'
+  bind '"\e\e": "\C-w\C-d"'
+  IFS= read -rep "(Esc оставить без изменения) $1" || {
+    printf '\nБез изменений\n'
+    read -st 1 -n 1000000
+    return 1
+  }
+  echo $REPLY
+}
 function true_false_menu {
   local false_true_selected_opt
   false_true_selected_opt=$(select_opt "${true_false[@]}")
@@ -254,12 +269,12 @@ function print_config_env {
     source ${configV3EnvPath}
     source ${defaultsV3EnvPath}
 
-    area_text+=("\xb2 ${BLUE}Опции памяти для JDBC bridge${NORMAL}: ${JDBC_BRIDGE_MEM_OPTIONS}")
+    #area_text+=("\xb2 ${BLUE}Опции памяти для JDBC bridge${NORMAL}: ${JDBC_BRIDGE_MEM_OPTIONS}")
     area_text+=("\xb2 ${BLUE}Внутренний мониторинг ${V3_TAG}${NORMAL}: ${INTERNAL_MONITORING}")
-    area_text+=("\xb2 ${BLUE}Опции памяти для Keycloak${NORMAL}: ${KEYCLOAK_MEM_OPTIONS}")
+    #area_text+=("\xb2 ${BLUE}Опции памяти для Keycloak${NORMAL}: ${KEYCLOAK_MEM_OPTIONS}")
 
     if [[ "${FSTEC}" == "${TRUE}" ]]; then
-      area_text+=("\xb2 ${BLUE}Блокировка админки Keycloak${NORMAL}: ${FSTEC}")
+      area_text+=("\xb2 ${BLUE}Защита админки Keycloak${NORMAL}: ${FSTEC}")
     fi
 
     if [[ ${LOKI_IS_TIME_UNLIMITED} == "${FALSE}" ]]; then
@@ -330,6 +345,7 @@ menu[menu4]="5. Изменить настройки платформы .."
 menu[menu5]="6. Диагностика .."
 menu[menu6]="7. Бэкап/восстановление .."
 menu[menu7]="8. Подготовить конфигурацию стенда"
+menu[menu9]="9. Выпустить самоподписанный сертификат"
 menu[menu8]="${EXIT}"
 
 menu3[menu31]="1. Изменить порт"
@@ -337,15 +353,16 @@ menu3[menu32]="2. Изменить адрес"
 menu3[menu33]="3. Включить/выключить SSL"
 menu3[menu34]="${BACK}"
 menu3[menu35]="4. Версии для запуска"
+menu3[menu36]="5. Подпапка для запуска V3"
 
 menu4[menu416]="01. Включить адрес в docker dns"
 menu4[menu402]="02. Установить SSL сертификаты"
 menu4[menu403]="03. Создать кластер Clickhouse"
 menu4[menu406]="04. Запретить/Разрешить встраивать iframe на сторонние сайты"
 menu4[menu407]="05. Отключение/Включение мониторинга"
-menu4[menu408]="06. Отключение/Включение админки Keycloak"
+menu4[menu408]="06. Отключение/Включение защиты Keycloak"
 menu4[menu409]="0${BACK}"
-menu4[menu410]="07. Отключение/Включение внешниго Keycloak"
+menu4[menu410]="07. Отключение/Включение внешнего Keycloak"
 menu4[menu411]="08. Ускорение запросов к Clickhouse"
 menu4[menu412]="09. Изменение времени ротации логов Loki"
 menu4[menu413]="10. Изменении предельного размера таблицы для удаления в Clickhouse"
@@ -375,7 +392,10 @@ menu6[menu63]="${BACK}"
 # Platform stop
 function menu1 {
   /bin/bash run.sh --stop
-  return 1
+
+  if [[ $? -eq 0 ]]; then
+    return 1
+  fi
 }
 # Platform restart
 function menu0 {
@@ -386,7 +406,9 @@ function menu0 {
     /bin/bash run.sh --restart
   fi
 
-  return 1
+  if [[ $? -eq 0 ]]; then
+    return 1
+  fi
 }
 # Licence
 function menu2 {
@@ -415,10 +437,12 @@ function menu31 {
   done
 
   if [[ ${port} -ne 0 ]]; then
-      /bin/bash run.sh --restart -c --port ${port}
+    /bin/bash run.sh --restart -c --port ${port}
   fi
 
-  return 1
+  if [[ $? -eq 0 ]]; then
+    return 1
+  fi
 }
 # Get address
 function menu32 {
@@ -464,6 +488,24 @@ function menu35 {
   sed -i -E "s/^START_VERSION=.*$/START_VERSION=${start_version}/" ${configEnvPath}
   echo "${NEED_RESTART}"
 }
+# Subfolder
+function menu36 {
+  source ${configEnvPath}
+  tput cup ${execute_start_row} 0; tput cud1
+  printf "После указания нового значения подпапки автоматически последует перезапуск платформы\n"
+
+  set -o emacs
+  bind '"\C-w": kill-whole-line'
+  bind '"\e": "\C-w\C-d"'
+  bind '"\e\e": "\C-w\C-d"'
+  IFS= read -rep "(Esc оставить без изменения) ${PLATFORM_IP}/" || {
+    printf '\nБез изменений\n'
+    read -st 1 -n 1000000
+    return 1
+  }
+
+  /bin/bash run.sh --restart -s $REPLY
+}
 ########### menu4
 
 # Get certs
@@ -505,6 +547,7 @@ function menu401 {
 function menu416 {
   source ${configEnvPath}
   tput cup ${execute_start_row} 0; tput cud1
+  echo $(cat "${V3_EXTENDED_SERVICES_DIR}/35-extrahosts.yml" | grep '\- \"' )
   read -rp "IP для ${PLATFORM_IP} (пусто - без изменений): " ip
 
   if [[ -n "${ip}" ]]; then
@@ -513,7 +556,7 @@ function menu416 {
     fi
 
     if [[ -f "${V3_EXTENDED_SERVICES_DIR}/35-extrahosts.yml" ]]; then
-      sed -i -E 's/^-\s+".*:.*"$/"${PLATFORM_IP}:${ip}"/' ${V3_EXTENDED_SERVICES_DIR}/35_extrahosts.yml
+      sed -i -E "s/-\s+\".+:.+\"$/- \"${PLATFORM_IP}:${ip}\"/" "${V3_EXTENDED_SERVICES_DIR}/35-extrahosts.yml"
     else
       printf "\nФайл с extrahost не найден"
     fi
@@ -529,24 +572,32 @@ function menu403 {
 }
 # sameorigin
 function menu406 {
+  source ${configEnvPath}
+  printf "SAMEORIGIN=%s\n" ${SAMEORIGIN}
   opt_type=$(true_false_menu)
   sed -i -E "s/^SAMEORIGIN=.*$/SAMEORIGIN=${opt_type}/" ${configEnvPath}
   echo "${NEED_RESTART}"
 }
 # Monitoring
 function menu407 {
+  source ${configV3EnvPath}
+  printf "INTERNAL_MONITORING=%s\n" ${INTERNAL_MONITORING}
   opt_type=$(true_false_menu)
   /bin/bash ${V3_DIR}prepare-config.sh --monitoring ${opt_type}
   echo "${NEED_RESTART}"
 }
 # Fstec
 function menu408 {
+  source ${configV3EnvPath}
+  printf "FSTEC=%s\n" ${FSTEC}
   opt_type=$(true_false_menu)
   /bin/bash ${V3_DIR}prepare-config.sh --fstec ${opt_type}
   echo "${NEED_RESTART}"
 }
 # Ext keycloak
 function menu410 {
+  source ${configV3EnvPath}
+  printf "EXT_AUTH=%s\n" ${EXT_AUTH}
   opt_type=$(true_false_menu)
   /bin/bash ${V3_DIR}prepare-config.sh --ext-auth ${opt_type}
   echo "${NEED_RESTART}"
@@ -558,12 +609,16 @@ function menu411 {
 }
 # Loki time
 function menu412 {
+  source ${defaultsV3EnvPath}
+  printf "LOKI_RETENTION_TIME=%s" ${LOKI_RETENTION_TIME}
   env_read_and_set "Время ротации логов ( пусто - без изменений): " "LOKI_RETENTION_TIME" ${defaultsV3EnvPath}
   echo "${NEED_RESTART}"
 }
 # drop limit
 function menu413 {
   xml_path=${configsV3dirPath}clickhouse-disable-drop-limits.xml
+  echo $(cat "${xml_path}" | grep 'max_table_size_to_drop' )
+  echo $(cat "${xml_path}" | grep 'max_partition_size_to_drop' )
   xml_read_and_set "max_table_size_to_drop ( пусто - без изменений): " "max_table_size_to_drop" ${xml_path}
   xml_read_and_set "max_partition_size_to_drop ( пусто - без изменений): " "max_partition_size_to_drop" ${xml_path}
   echo "${NEED_RECONF}"
@@ -571,6 +626,8 @@ function menu413 {
 # timeout
 function menu414 {
   xml_path=${configsV3dirPath}clickhouse-http-receive-timeout.xml
+  echo $(cat "${xml_path}" | grep 'http_max_field_value_size' )
+  echo $(cat "${xml_path}" | grep 'http_receive_timeout' )
   xml_read_and_set "http_max_field_value_size ( пусто - без изменений): " "http_max_field_value_size" ${xml_path}
   xml_read_and_set "http_receive_timeout ( пусто - без изменений): " "http_receive_timeout" ${xml_path}
   echo "${NEED_RECONF}"
@@ -578,6 +635,7 @@ function menu414 {
 # time zone
 function menu415 {
   xml_path=${configsV3dirPath}clickhouse-timezone.xml
+  echo $(cat "${xml_path}" | grep 'timezone' )
   xml_read_and_set "timezone ( пусто - без изменений): " "timezone" ${xml_path}
   echo "${NEED_RECONF}"
 }
@@ -606,24 +664,36 @@ function menu417 {
 # Mail server
 function menu418 {
   tput cup ${execute_start_row} 0; tput cud1
-  echo "Для продолжения необходимо остановить платформу. Продолжить?"
-  yes_no=("Да" "Нет")
-  false_true_selected_opt=$(select_opt "${yes_no[@]}")
-  opt_type=${FALSE}
+  proxy_container_id=$(docker ps -f status=running | grep ${PROXY_SERVICE} |  awk '{ print $1 }');
 
-  if [[ "${false_true_selected_opt}" == "1" ]]; then
-    return
+  if [[ -n "${proxy_container_id}" ]]; then
+    echo "Для продолжения необходимо остановить платформу. Продолжить?"
+    yes_no=("Да" "Нет")
+    false_true_selected_opt=$(select_opt "${yes_no[@]}")
+    opt_type=${FALSE}
+
+    if [[ "${false_true_selected_opt}" == "1" ]]; then
+      return 1
+    fi
+
+    /bin/bash run.sh --stop
   fi
-
-  /bin/bash run.sh --stop
 
   source ${vdV3EnvPath}
   source ${configV3EnvPath}
 
   DS_EMAIL_SECRETS_LABEL=${PROJECT}_ds_email
 
+  printf "_____________Текущие параметры___________\n"
+  printf "Адрес почтового сервера: ${MAGENTA}%s${NORMAL}\n" ${DS_EMAIL_HOST}
+  printf "Порт почтового сервера: ${MAGENTA}%s${NORMAL}\n" ${Mail__Port}
+  printf "Email: ${MAGENTA}%s${NORMAL}\n" ${DS_EMAIL_EMAIL}
+  printf "Количество повторов отправлений: ${MAGENTA}%s${NORMAL}\n" ${Mail__RetrySendCount}
+  printf "Тип безопасного соединения: ${MAGENTA}%s${NORMAL}\n" ${Mail__ConnectionSecurity}
+  printf "________________________________________\n"
+
   env_read_and_set "Адрес почтового сервера ( пусто - без изменений): " "DS_EMAIL_HOST" ${vdV3EnvPath}
-  env_read_and_set "Email ( пусто - без изменений): " "DS_EMAIL_EMAIL" ${vdV3EnvPath} 1
+  env_read_and_set "Email ( пусто - без изменений): " "DS_EMAIL_EMAIL" ${vdV3EnvPath}
 
   if [[ -z "${Mail__Port}" ]]; then
     echo "Mail__Port=465" >> ${vdV3EnvPath}
@@ -637,9 +707,11 @@ function menu418 {
     echo "Mail__ConnectionSecurity=SslOnConnect" >> ${vdV3EnvPath}
   fi
 
-  env_read_and_set "Порт почтового сервера ( пусто - без изменений): " "Mail__Port" ${vdV3EnvPath} 1
-  env_read_and_set "Количество повторов отправлений ( пусто - без изменений): " "Mail__RetrySendCount" ${vdV3EnvPath} 1
-  env_read_and_set "Тип безопасного соединения ( пусто - без изменений): " "Mail__ConnectionSecurity" ${vdV3EnvPath} 1
+
+
+  env_read_and_set "Порт почтового сервера ( пусто - без изменений): " "Mail__Port" ${vdV3EnvPath}
+  env_read_and_set "Количество повторов отправлений ( пусто - без изменений): " "Mail__RetrySendCount" ${vdV3EnvPath}
+  env_read_and_set "Тип безопасного соединения ( пусто - без изменений): " "Mail__ConnectionSecurity" ${vdV3EnvPath}
 
   tput cud1
   read -rp "Логин (пусто - без изменений): " ds_email_login
@@ -735,20 +807,28 @@ function menu58 {
     printf "Файл контрольных сумм не найден"
   fi
 
-  return 1
+  if [[ $? -eq 0 ]]; then
+    return 1
+  fi
 }
 ########## menu 6
 # Restore
 function menu61 {
   /bin/bash ./v3/restore.sh
   /bin/bash ${UTILS_DIR}/load_secrets.sh
-  return 1
+
+  if [[ $? -eq 0 ]]; then
+    return 1
+  fi
 }
 # Backup
 function menu62 {
   /bin/bash ${UTILS_DIR}/store_secrets.sh
   /bin/bash ./v3/backup.sh
-  return 1
+
+  if [[ $? -eq 0 ]]; then
+    return 1
+  fi
 }
 ########## menu 7
 # prepare
@@ -764,19 +844,75 @@ function menu7 {
         /bin/bash ./v2/prepare-folders.sh
         ;;
       "${V3}")
-        /bin/bash ./v2/prepare-config.sh -f
+        /bin/bash ./v3/prepare-config.sh -f
         ;;
       "${ALL}")
         /bin/bash ./v2/prepare-config.sh
         /bin/bash ./v2/prepare-folders.sh
-        /bin/bash ./v2/prepare-config.sh -f
+        /bin/bash ./v3/prepare-config.sh -f
         ;;
     esac
   else
     printf "\nПлатформу необходимо предварительно остановить"
+    return 0
   fi
 
-  return 1
+  if [[ $? -eq 0 ]]; then
+    return 1
+  fi
+}
+########## menu 9
+# make ssl certs
+function menu9 {
+  tput cup ${execute_start_row} 0; tput cud1
+  read -rp "Адрес платформы: " cn
+  cn_type=DNS
+  opt_nodes=
+  pass_phrase=
+
+  sed -i -E "s/^PLATFORM_IP=[^:]*/PLATFORM_IP=${cn}/" ${configEnvPath}
+
+  if [[ "$cn" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    cn_type=IP
+  fi
+
+  echo "Использовать пароль для сертификата?"
+  yes_no=("Да" "Нет")
+  false_true_selected_opt=$(select_opt "${yes_no[@]}")
+  opt_type=${FALSE}
+
+  if [[ "${false_true_selected_opt}" == "1" ]]; then
+    opt_nodes="-nodes"
+  else
+    read -rp "Пароль ключа: " pass_phrase
+    echo ${pass_phrase} > ${CERTS_DIR}password.pass
+    pass_phrase="-passout file:${CERTS_DIR}password.pass"
+  fi
+
+  san=${cn_type}:${cn}
+  openssl req -new ${opt_nodes} -x509 -sha256 -newkey rsa:2048 ${pass_phrase} -keyout ${CERTS_DIR}privatekey.key -out ${CERTS_DIR}certificate.crt -days 365 \
+    -config <(echo "
+    [req]
+    distinguished_name=req_distinguished_name
+    x509_extensions=v3_req
+    prompt=no
+    [req_distinguished_name]
+    CN = ${cn}
+    [v3_req]
+    subjectKeyIdentifier=hash
+    authorityKeyIdentifier=keyid:always,issuer
+    basicConstraints=CA:true
+    subjectAltName=${san}")
+  #openssl pkcs12 -export -out ${CERTS_DIR}proxy.pfx -inkey ${CERTS_DIR}privatekey.key -in ${CERTS_DIR}certificate.crt
+
+  if [[ -z "${opt_nodes}" ]]; then
+    sed -i -E "s/^CERT_PASS_FILENAME=.*$/CERT_PASS_FILENAME=password.pass/" ${configEnvPath}
+  fi
+
+  sed -i -E "s/^CERT_CRT_FILENAME=.*$/CERT_CRT_FILENAME=certificate.crt/" ${configEnvPath}
+  sed -i -E "s/^CERT_KEY_FILENAME=.*$/CERT_KEY_FILENAME=privatekey.key/" ${configEnvPath}
+  echo "${NEED_RESTART}"
+
 }
 ################################################################ end
 
