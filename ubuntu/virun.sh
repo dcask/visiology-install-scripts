@@ -547,7 +547,9 @@ function menu401 {
 function menu416 {
   source ${configEnvPath}
   tput cup ${execute_start_row} 0; tput cud1
-  echo $(cat "${V3_EXTENDED_SERVICES_DIR}/35-extrahosts.yml" | grep '\- \"' )
+  if [[ -f "${V3_EXTENDED_SERVICES_DIR}/35-extrahosts.yml" ]]; then
+    echo $(cat "${V3_EXTENDED_SERVICES_DIR}/35-extrahosts.yml" | grep '\- \"' )
+  fi
   read -rp "IP для ${PLATFORM_IP} (пусто - без изменений): " ip
 
   if [[ -n "${ip}" ]]; then
