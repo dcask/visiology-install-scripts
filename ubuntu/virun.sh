@@ -18,7 +18,7 @@ GREEN=$(tput setaf 3)
 NORMAL=$(tput sgr0)
 
 BACK="0. Назад ---------------------------------------"
-EXIT="0. Выход ---------------------------------------"
+EXIT="00. Выход ---------------------------------------"
 PRESS_ANY_KEY="..Нажмите любую клавишу для возврата в меню ----------"
 NEED_RESTART="При изменении требуется выполнить перезапуск (корневой пункт меню 1)"
 NEED_RECONF="При изменении требуется выполнить переконфигурацию (корневой пункт меню 8)"
@@ -337,15 +337,16 @@ declare -A menu5
 declare -A menu6
 declare -A menu
 
-menu[menu0]="1. Запустить/Перезапустить платформу"
-menu[menu1]="2. Остановить платформу"
-menu[menu2]="3. Ввести лицензионный ключ v3"
-menu[menu3]="4. Изменить параметры запуска .."
-menu[menu4]="5. Изменить настройки платформы .."
-menu[menu5]="6. Диагностика .."
-menu[menu6]="7. Бэкап/восстановление .."
-menu[menu7]="8. Подготовить конфигурацию стенда"
-menu[menu9]="9. Выпустить самоподписанный сертификат"
+menu[menu0]="01. Запустить/Перезапустить платформу"
+menu[menu1]="02. Остановить платформу"
+menu[menu2]="03. Ввести лицензионный ключ v3"
+menu[menu3]="04. Изменить параметры запуска .."
+menu[menu4]="05. Изменить настройки платформы .."
+menu[menu5]="06. Диагностика .."
+menu[menu6]="07. Бэкап/восстановление .."
+menu[menu7]="08. Подготовить конфигурацию стенда"
+menu[menu9]="09. Выпустить самоподписанный сертификат"
+menu[menu10]="10. Подготовить новый main.js"
 menu[menu8]="${EXIT}"
 
 menu3[menu31]="1. Изменить порт"
@@ -915,6 +916,23 @@ function menu9 {
   sed -i -E "s/^CERT_KEY_FILENAME=.*$/CERT_KEY_FILENAME=privatekey.key/" ${configEnvPath}
   echo "${NEED_RESTART}"
 
+}
+
+########## menu 10
+# main.js
+function menu10 {
+  yml_name=${V3_EXTENDED_SERVICES_DIR}/53-main-js.yml
+  container_id=$(docker ps -q --filter label=component=v3-dashboard-viewer)
+  filepath=$(docker exec ${container_id} sh -c "ls /app/wwwroot/dist/main*.js")
+  filename=$(basename ${filepath})
+  docker cp ${container_id}:${filepath} ${V3_EXTENDED_SERVICES_DIR}/${filename}
+  echo 'version: "3.8"' > ${yml_name}
+  echo 'services:' >> ${yml_name}
+  echo '  dashboard-viewer:' >> ${yml_name}
+  echo '    volumes:' >> ${yml_name}
+  echo "      - /var/lib/visiology/scripts/v3/extended-services/${filename}:/app/wwwroot/dist/${filename}" >> ${yml_name}
+  echo >> ${yml_name}
+  echo "Новый файл ${V3_EXTENDED_SERVICES_DIR}/${filename} примонтирован к сервису v3-dashboard-viewer"
 }
 ################################################################ end
 
