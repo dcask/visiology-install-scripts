@@ -252,7 +252,8 @@ function print_config_env {
   if [[ -n "${proxy_container_id}" ]]; then
     area_text+=("\xb2 Платформа ${GREEN}запущена${NORMAL}")
   fi
-
+  FREE_DISK=$(df --output=avail -h . | sed -n '2 p'| awk '{print $1}')
+  area_text+=("\xb2 Свободное место на диске: ${FREE_DISK}")
   area_text+=("\xb2 Адрес платформы: ${PLATFORM_IP}")
   area_text+=("\xb2 SSL: ${HTTPS}")
   area_text+=("\xb2 Версии для запуска: ${version}")
@@ -349,6 +350,7 @@ menu[menu6]="07. Бэкап/восстановление .."
 menu[menu7]="08. Подготовить конфигурацию стенда"
 menu[menu9]="09. Выпустить самоподписанный сертификат"
 menu[menu10]="10. Подготовить новый main.js"
+menu[menu11]="11. Обновить платформу до следующей версии"
 menu[menu8]="${EXIT}"
 
 menu3[menu31]="1. Изменить порт"
@@ -935,6 +937,30 @@ function menu10 {
   echo "      - /var/lib/visiology/scripts/v3/extended-services/${filename}:/app/wwwroot/dist/${filename}" >> ${yml_name}
   echo >> ${yml_name}
   echo "Новый файл ${V3_EXTENDED_SERVICES_DIR}/${filename} примонтирован к сервису v3-dashboard-viewer"
+}
+
+########## menu 11
+# Update
+function menu11 {
+  tput cup ${execute_start_row} 0; tput cud1
+  source ${configEnvPath}
+  versions_part=(${V3_TAG//./ })
+  new_version=${versions_part[0]}.$(( ${versions_part[1]} + 1 ))
+  echo "Предварительно Вы должны были загрузить образ обновления"
+  comm=$(docker images | grep cr.yandex/crpe1mi33uplrq7coc9d/visiology/release/update:${new_version})
+  if [[ $? == 0 ]]; then
+    docker run --rm -it \
+      --name update-container \
+      -v /var/run/docker.sock:/var/run/docker.sock \
+      -v /docker-volume:/docker-volume \
+      -v /var/lib/visiology:/mnt/volume \
+      cr.yandex/crpe1mi33uplrq7coc9d/visiology/release/update:${new_version} \
+          "$(id -u):$(id -g)" | \
+    tee /var/lib/visiology/logs/update-log-$(date +%Y-%m-%d-%H-%M-%z).txt
+  else
+    echo "Образ не найден"
+  fi
+
 }
 ################################################################ end
 
