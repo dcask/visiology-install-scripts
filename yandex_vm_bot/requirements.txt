@@ -1,0 +1,7 @@
+python-telegram-bot[job-queue]==0.28.1
+python-telegram-bot==22.1
+PyJWT==2.10.1
+cryptography==45.0.4
+yandexcloud==0.349.0
+requests==2.32.4
+paramiko==3.5.1
